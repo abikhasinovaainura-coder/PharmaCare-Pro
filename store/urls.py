@@ -53,4 +53,12 @@ urlpatterns = [
         name="admin_tracking_page"
     ),
 
+    # Курьер тапсырыстың жеткізілгенін растайды
+    path(
+        "api/orders/<int:order_id>/delivered/",
+        views.courier_mark_delivered,
+        name="courier_mark_delivered"
+    ),
+
+
 ]

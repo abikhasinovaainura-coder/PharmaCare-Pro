@@ -345,7 +345,7 @@
                                         <i class="fa-solid fa-location-dot"></i>
                                         <span data-i18n="pharmacyAddressTitle">Дәріхана мекенжайы:</span>
                                     </div>
-                                    <p class="text-[11px] text-slate-600 pl-5" data-i18n="footerAddress">Алматы қаласы, Абай даңғылы 150 (Тәулік бойы)</p>
+                                    <p class="text-[11px] text-slate-600 pl-5" data-i18n="footerAddress">Тараз қаласы ул.Толе Би 64 (Тәулік бойы)</p>
                                 </div>
                             </div>
                         </div>
@@ -452,6 +452,7 @@
         </div>
 
 
+        <!-- ДЕМО: тапсырыстар браузерде сақталады, Django-дағы нақты Order жазбалары емес -->
         <!-- VIEW 3: ADMIN DASHBOARD (Hidden by default) -->
         <div id="adminDashboardView" class="hidden fade-in py-8">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -703,7 +704,7 @@
                 <ul class="space-y-3 text-xs text-slate-400">
                     <li class="flex items-center gap-3"><i class="fa-solid fa-phone text-medical-500"></i> +7 707 891 18 02</li>
                     <li class="flex items-center gap-3"><i class="fa-brands fa-whatsapp text-emerald-400 text-base"></i> <a id="footerWhatsappText" href="#" target="_blank">WhatsApp нөмірін баптаңыз</a></li>
-                    <li class="flex items-center gap-3"><i class="fa-solid fa-location-dot text-medical-500"></i> <span data-i18n="footerAddress">Алматы қаласы, Абай даңғылы 150</span></li>
+                    <li class="flex items-center gap-3"><i class="fa-solid fa-location-dot text-medical-500"></i> <span data-i18n="footerAddress">Тараз қаласы ул.Толе Би 64</span></li>
                 </ul>
             </div>
         </div>
@@ -1653,7 +1654,22 @@
         const SESSION_KEY = 'pharma_demo_session_v2';
         let userPhone = '';
         const normalizePhone = v => (v || '').replace(/\D/g,'');
-        const waLink = (phone,msg='') => 'https://wa.me/' + normalizePhone(phone) + (msg ? '?text='+encodeURIComponent(msg) : '');
+        function waPhone(phone) {
+            let n = String(phone || '').replace(/\D/g, '');
+            if (n.length === 11 && n.startsWith('8')) n = '7' + n.slice(1);
+            if (n.length === 10) n = '7' + n;
+            if (!/^7\d{10}$/.test(n)) throw new Error('WhatsApp нөмірі дұрыс емес');
+            return n;
+        }
+        const waLink = (phone, msg='') => 'https://wa.me/' + waPhone(phone) + (msg ? '?text=' + encodeURIComponent(msg) : '');
+        const WA_ADMIN = '77078911802';
+        function openWaDraft(phone, message) {
+            try {
+                const url = waLink(phone, message);
+                const tab = window.open(url, '_blank', 'noopener,noreferrer');
+                if (!tab) showToast('WhatsApp ашылмаса, браузердегі қалқымалы терезелерге рұқсат беріңіз', 'warning');
+            } catch(e) { showToast(e.message, 'warning'); }
+        }
 
         function getRegisteredUsers() {
             try {
@@ -2007,7 +2023,7 @@
                 const ord={id:Date.now(),client:currentUser,phone:userPhone,items:cart.map(i=>({...i})),total:cart.reduce((a,i)=>a+i.price*i.quantity,0),deliveryType,paymentMethod,address:addr,receipt:receiptData||'',courier:'',status:'Жаңа тапсырыс',date:new Date().toLocaleString('kk-KZ')};
                 ordersDatabase.unshift(ord);cart.forEach(i=>{medicinesDatabase.find(x=>x.id===i.id).stock-=i.quantity});persistDemo();renderMedicines();renderAdminInventory();clientOrders=ordersDatabase.filter(o=>o.phone===userPhone);cart=[];updateCartBadge();closeCartModal();document.getElementById('paymentReceipt').value='';showToast('Тапсырыс браузерде тіркелді (демо)','success');
                 const msg=`Жаңа тапсырыс #${ord.id}\nКлиент: ${ord.client}\nWhatsApp: +${ord.phone}\nДәрілер: ${ord.items.map(i=>i.name+' x'+i.quantity).join(', ')}\nЖалпы: ${ord.total} ₸\nЖеткізу: ${ord.deliveryType==='courier'?ord.address:'Өзі алып кету'}\nТөлем: ${ord.paymentMethod}\nЧек: ${ord.receipt?'сайтта тіркелген (демо)':'жоқ'}`;
-                if(pharmacySettings.phone){if(confirm('Тапсырыс сақталды. Дәріхананың WhatsApp чатын дайын хабарламамен ашасыз ба? Хабарламаны өзіңіз жіберуіңіз керек.'))window.open(waLink(pharmacySettings.phone,msg),'_blank','noopener');}else showToast('WhatsApp нөмірі бапталмаған: админге хабарлама жіберілмеді','warning');
+                if(confirm('Тапсырыс браузерде (демо) сақталды. Админге WhatsApp мәтінін ашасыз ба? ЖІБЕРУ батырмасын өзіңіз басасыз.')) openWaDraft(WA_ADMIN, msg);
             };
             if(receipt){const r=new FileReader();r.onload=()=>finish(r.result);r.readAsDataURL(receipt);}else finish('');
         }
@@ -2228,6 +2244,7 @@
                             <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold">${ord.status}</span>
                         </td>
                         <td class="p-4 text-right space-x-2">
+                            <button onclick="notifyAdminDeliveredDemo(${ord.id})" class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs">✔ Жеткізілді · WhatsApp</button>
                             <button onclick="updateOrderStatus(${ord.id},'Қабылданды')" class="px-2 py-1 bg-slate-100 rounded-lg text-xs">Қабылдау</button>
                             ${ord.deliveryType === 'courier' ? `<select onchange="assignCourier(${ord.id},this.value)" class="border rounded-lg px-2 py-1 text-xs"><option value="">Курьер таңдаңыз</option>${courierDatabase.map(n=>`<option value="${htmlSafe(n.name)}" ${ord.courier===n.name?'selected':''}>${htmlSafe(n.name)}</option>`).join('')}</select>` : ''}
                             ${ord.deliveryType === 'courier' ? `
@@ -2244,7 +2261,41 @@
 
         function assignCourier(orderId,name){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord)return;ord.courier=name;persistDemo();renderAdminOrders();renderDeliveryManagement();renderAdminCourierMarkers();showToast(name?'Курьер тағайындалды':'Курьер алынды','success');}
         function viewReceipt(orderId){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord?.receipt)return;const w=window.open('','_blank');if(!w){showToast('Қалқымалы терезеге рұқсат беріңіз','warning');return;}if(ord.receipt.startsWith('data:application/pdf'))w.document.write(`<iframe src="${ord.receipt}" style="width:100%;height:98vh"></iframe>`);else w.document.write(`<img src="${ord.receipt}" style="max-width:100%">`);}
-        function updateOrderStatus(orderId,newStatus){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord)return;if(newStatus==='Жолға шықты'&&!ord.courier){showToast('Алдымен курьерді тағайындаңыз','warning');return;}ord.status=newStatus;persistDemo();renderAdminOrders();renderDeliveryManagement();renderAdminCourierMarkers();showToast('Тапсырыс күйі: '+newStatus,'success');if(ord.phone){let msg=`Сәлеметсіз бе, ${ord.client}! #${ord.id} тапсырысыңыз қабылданды.`;if(newStatus==='Жолға шықты')msg=`#${ord.id} тапсырысыңыз жолға шықты. Курьер: ${ord.courier}.`;if(newStatus==='Дайын (Алып кету)')msg=`#${ord.id} тапсырысыңыз дайын. ${pharmacySettings.address||'Дәріхана мекенжайын админнен нақтылаңыз'} мекенжайынан алып кете аласыз.`;if(confirm('Клиентке WhatsApp-та дайын хабарламаны ашасыз ба? Жіберуді өзіңіз растауыңыз керек.'))window.open(waLink(ord.phone,msg),'_blank','noopener');}}
+        function updateOrderStatus(orderId, newStatus) {
+            const ord = ordersDatabase.find(o => o.id === orderId);
+            if (!ord) return;
+            if (newStatus === 'Жолға шықты' && !ord.courier) {
+                showToast('Алдымен курьерді тағайындаңыз', 'warning'); return;
+            }
+            ord.status = newStatus;
+            persistDemo(); renderAdminOrders(); renderDeliveryManagement(); renderAdminCourierMarkers();
+            showToast('Демо тапсырыс күйі: ' + newStatus, 'success');
+            if (!ord.phone) return;
+            const courier = courierDatabase.find(c => c.name === ord.courier);
+            let msg = `Сәлеметсіз бе, ${ord.client}!\nТапсырыс №${ord.id}\nМәртебесі: ${newStatus}.`;
+            if (newStatus === 'Жолға шықты' || newStatus === 'Қабылданды') {
+                if (ord.deliveryType === 'courier' && courier) {
+                    msg += `\n🚴 Курьер: ${courier.name}\n📞 Телефоны: ${courier.phone || 'нақтылануда'}`;
+                }
+            }
+            if (newStatus === 'Дайын (Алып кету)') {
+                msg += `\n📍 Мекенжай: ${pharmacySettings.address || 'Дәріханадан нақтылаңыз'}`;
+            }
+            if (confirm('Клиентке WhatsApp хабарламасының дайын мәтінін ашасыз ба? Оны өзіңіз жібересіз.')) {
+                openWaDraft(ord.phone, msg);
+            }
+        }
+
+
+        function notifyAdminDeliveredDemo(orderId) {
+            const ord = ordersDatabase.find(o => o.id === orderId);
+            if (!ord || ord.deliveryType !== 'courier') {
+                showToast('Бұл жеткізу тапсырысы емес', 'warning'); return;
+            }
+            if (!confirm('Демо тапсырысты «Жеткізілді» деп белгілеу және админге WhatsApp мәтінін ашу керек пе?')) return;
+            ord.status = 'Жеткізілді'; persistDemo(); renderAdminOrders(); renderDeliveryManagement();
+            openWaDraft(WA_ADMIN, `✔️ Тапсырыс жеткізілді!\n№${ord.id}\nКлиент: ${ord.client}\nКурьер: ${ord.courier || 'көрсетілмеген'}`);
+        }
 
         function renderAdminAnalytics() {
             const container = document.getElementById('categorySalesStats');

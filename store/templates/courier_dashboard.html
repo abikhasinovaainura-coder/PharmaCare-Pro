@@ -317,6 +317,13 @@
                             GPS бақылауды тоқтату
                         </button>
 
+                        <button type="button" data-order-id="{{ order.id }}"
+                            onclick="markDelivered(this)"
+                            class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl py-3">
+                            ✔ Тапсырыс жеткізілді
+                        </button>
+                        <p class="text-xs text-slate-500">Мәртебе серверде сақталады. WhatsApp мәтінін өзіңіз жібересіз.</p>
+
                         <p id="gpsStatus-{{ order.id }}"
                            class="text-xs text-slate-500"
                            aria-live="polite">
@@ -590,6 +597,30 @@ function initializeMap() {
                     timeout: 15000
                 }
             );
+        }
+
+
+        async function markDelivered(button) {
+            const id = Number(button.dataset.orderId);
+            if (!confirm(`№${id} тапсырысы клиентке жеткізілгенін растайсыз ба?`)) return;
+            button.disabled = true;
+            try {
+                const res = await fetch(`/api/orders/${id}/delivered/`, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: {'X-CSRFToken': csrfToken}
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Сервер қатесі');
+                const text = `✔️ Тапсырыс жеткізілді!\n№${id}\nКурьер: {{ courier.name|escapejs }}`;
+                const link = `https://wa.me/77078911802?text=${encodeURIComponent(text)}`;
+                // Popup may be blocked after await; fallback is visible clickable link.
+                const a = document.createElement('a');
+                a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.textContent = 'Админге WhatsApp арқылы хабарлау (жіберу)';
+                a.className = 'block mt-2 p-3 bg-green-50 text-green-800 rounded-xl font-bold text-center';
+                button.replaceWith(a);
+                alert('Жеткізу мәртебесі серверде сақталды. Енді WhatsApp сілтемесін басып, хабарламаны жіберіңіз.');
+            } catch(e) { alert('Қате: ' + e.message); button.disabled = false; }
         }
 
         function stopGPS() {

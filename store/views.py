@@ -277,3 +277,21 @@ def admin_tracking_page(request):
         request,
         "admin_tracking.html"
     )
+
+
+# 8. Курьер жеткізуді растауы: тек өзіне бекітілген тапсырыс
+@login_required(login_url="/courier/login/")
+@require_POST
+def courier_mark_delivered(request, order_id):
+    from django.db import transaction
+    courier = Courier.objects.filter(user=request.user, is_active=True).first()
+    if courier is None:
+        return JsonResponse({"success": False, "error": "Курьерге рұқсат жоқ."}, status=403)
+    with transaction.atomic():
+        order = get_object_or_404(Order.objects.select_for_update(), id=order_id,
+                                  courier=courier, delivery_type="courier")
+        if order.status not in ("accepted", "on_way"):
+            return JsonResponse({"success": False, "error": "Бұл тапсырысты жеткізілді деп өзгертуге болмайды."}, status=400)
+        order.status = "delivered"
+        order.save(update_fields=["status"])
+    return JsonResponse({"success": True, "order_id": order.id, "status": "delivered"})
